@@ -227,7 +227,7 @@ def run_diagnosis_loop(
     """다중 턴 진단 루프 실행"""
 
     client = ollama_client if localllm else openai_client
-    model = "gpt-oss:20b" if localllm else "gpt-4o-mini"
+    model = "gpt-oss:20b" if localllm else "gpt-5-mini"
 
     messages = [
         {"role": "system", "content": load_system_prompt()},
