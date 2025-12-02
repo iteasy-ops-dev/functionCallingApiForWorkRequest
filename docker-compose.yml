@@ -8,6 +8,8 @@ services:
       - .env
     environment:
       - PYTHONUNBUFFERED=1
+    volumes:
+      - ./system_prompt.txt:/app/system_prompt.txt:ro
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--spider", "-q", "http://localhost:8000/health"]
