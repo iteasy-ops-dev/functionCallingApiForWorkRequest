@@ -101,6 +101,7 @@ class RequestDTO(BaseModel):
 
 class CommandExecution(BaseModel):
     command: str
+    reason: str
     output: str
     exit_code: int
 
@@ -226,7 +227,7 @@ def run_diagnosis_loop(
 ) -> tuple[str, list[CommandExecution], float, dict]:
     """다중 턴 진단 루프 실행"""
 
-    client = ollama_client if localllm else openai_client
+    client = ollama_client if localllm else openai_client # localllm 플래그에 따라 클라이언트 선택. False면 OpenAI 사용 
     model = "gpt-oss:20b" if localllm else "gpt-5-mini"
 
     messages = [
@@ -245,7 +246,15 @@ def run_diagnosis_loop(
             model=model,
             messages=messages,
             tools=TOOLS,
-            tool_choice="auto"
+            tool_choice="required", # "none", "auto", "required"
+            # TEST START
+            # temperature=0,
+            # max_tokens=2000,
+            # top_p=1,
+            # seed=42,
+            # reasoning_effort="minimal", # "none", "minimal", "low", "medium", "high"
+            # verbosity="low" # "low", "medium", "high"
+            # TEST END
         )
 
         total_llm_time += time.time() - start_time
@@ -257,6 +266,9 @@ def run_diagnosis_loop(
             total_usage["total"] += response.usage.total_tokens
 
         assistant_message = response.choices[0].message
+
+        print(f"[TURN {turn + 1}] Tools: {assistant_message.tool_calls[0].function.arguments if assistant_message.tool_calls else 'No Function Call'}")
+
         messages.append(assistant_message.model_dump())
 
         # Function call이 없으면 종료
@@ -271,10 +283,12 @@ def run_diagnosis_loop(
 
             if function_name == "execute_ssh_command":
                 command = function_args["command"]
+                reason = function_args["reason"]
                 output, exit_code = execute_ssh_command(ssh_client, command)
 
                 executions.append(CommandExecution(
                     command=command,
+                    reason=reason,
                     output=output[:2000],  # 출력 제한
                     exit_code=exit_code
                 ))
