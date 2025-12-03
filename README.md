@@ -157,11 +157,13 @@ uvicorn main:app --host 0.0.0.0 --port 8000
   "executions": [
     {
       "command": "free -m",
+      "reason": "현재 메모리 사용량 확인",
       "output": "              total        used        free\nMem:          16384       15565         819",
       "exit_code": 0
     },
     {
       "command": "ps aux --sort=-%mem | head -10",
+      "reason": "메모리 사용량이 높은 프로세스 확인",
       "output": "USER       PID %CPU %MEM ...",
       "exit_code": 0
     }
@@ -185,6 +187,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 |------|------|
 | `message` | 최종 진단 결과 및 해결 방법 |
 | `executions` | 실행된 명령어 목록 및 결과 |
+| `executions[].reason` | 해당 명령어를 실행한 이유 |
 | `latency.ssh` | SSH 연결 및 명령어 실행 시간 (초) |
 | `latency.openai` | LLM API 호출 시간 (초) |
 | `latency.total` | 전체 처리 시간 (초) |
