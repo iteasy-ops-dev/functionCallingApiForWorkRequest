@@ -125,7 +125,7 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "execute_ssh_command",
-            "description": "SSH를 통해 Linux 서버에서 명령어를 실행합니다. 서버 상태 확인, 로그 조회, 프로세스 확인 등에 사용합니다.",
+            "description": "SSH를 통해 Linux 서버에서 명령어를 실행하여 정보를 수집합니다. 서버 상태 확인, 로그 조회, 프로세스 확인 등에 사용합니다. 정보 수집 후에는 finish_diagnosis를 호출하여 진단 결과를 제공해야 합니다.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -146,22 +146,22 @@ TOOLS = [
         "type": "function",
         "function": {
             "name": "finish_diagnosis",
-            "description": "충분한 정보를 수집했을 때 최종 진단 결과와 해결책을 제공합니다.",
+            "description": "명령어 실행 결과를 분석하여 최종 진단 결과를 제공할 때 호출합니다. execute_ssh_command로 필요한 정보를 수집한 후 반드시 이 함수를 호출하여 사용자에게 진단 결과와 해결 방법을 전달해야 합니다.",
             "parameters": {
                 "type": "object",
                 "properties": {
                     "diagnosis": {
                         "type": "string",
-                        "description": "문제에 대한 진단 결과"
+                        "description": "execute_ssh_command로 수집한 정보를 분석한 결과입니다. 현재 시스템 상태, 발견된 문제의 원인, 관련 로그나 프로세스 정보를 포함하여 설명합니다."
                     },
                     "solution": {
                         "type": "string",
-                        "description": "해결 방법 및 권장 조치"
+                        "description": "문제를 해결하기 위한 구체적인 방법입니다. 실행해야 할 조치, 설정 변경 사항, 권장 명령어 등을 포함하여 설명합니다."
                     },
                     "commands_to_fix": {
                         "type": "array",
                         "items": {"type": "string"},
-                        "description": "문제 해결을 위해 실행해야 할 명령어 목록 (선택사항)"
+                        "description": "문제 해결을 위해 사용자가 직접 실행해야 할 명령어 목록입니다 (선택사항)"
                     }
                 },
                 "required": ["diagnosis", "solution"]
@@ -230,6 +230,9 @@ def run_diagnosis_loop(
     client = ollama_client if localllm else openai_client # localllm 플래그에 따라 클라이언트 선택. False면 OpenAI 사용 
     model = "gpt-oss:20b" if localllm else "gpt-5-mini"
 
+    print(f"Using model: {model}")
+    print(f"truble_description: {trouble_description}")
+
     messages = [
         {"role": "system", "content": load_system_prompt()},
         {"role": "user", "content": f"### 요청 사항 \n\n{trouble_description}"}
@@ -267,7 +270,14 @@ def run_diagnosis_loop(
 
         assistant_message = response.choices[0].message
 
-        print(f"[TURN {turn + 1}] Tools: {assistant_message.tool_calls[0].function.arguments if assistant_message.tool_calls else 'No Function Call'}")
+        # 디버깅 로그
+        if assistant_message.tool_calls:
+            for tool_call in assistant_message.tool_calls:
+                print(f"[TURN {turn + 1}] Function: {tool_call.function.name}")
+                print(f"[TURN {turn + 1}] Arguments: {tool_call.function.arguments}")
+        else:
+            print(f"[TURN {turn + 1}] No Function Call")
+            print(f"[TURN {turn + 1}] Content: {assistant_message.content}")
 
         messages.append(assistant_message.model_dump())
 
@@ -282,8 +292,8 @@ def run_diagnosis_loop(
             function_args = json.loads(tool_call.function.arguments)
 
             if function_name == "execute_ssh_command":
-                command = function_args["command"]
-                reason = function_args["reason"]
+                command = function_args.get("command", "")
+                reason = function_args.get("reason", "")
                 output, exit_code = execute_ssh_command(ssh_client, command)
 
                 executions.append(CommandExecution(
@@ -318,7 +328,7 @@ def run_diagnosis_loop(
 
                 return final_message, executions, total_llm_time, total_usage
 
-    return "최대 진단 횟수에 도달했습니다.", executions, total_llm_time, total_usage
+    return "최대 진단 횟수에 도달했습니다. 다시 시도해 주세요.", executions, total_llm_time, total_usage
 
 
 app = FastAPI()
